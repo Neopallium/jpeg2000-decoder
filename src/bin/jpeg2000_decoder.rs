@@ -6,6 +6,7 @@
 
 ////use url::Url;
 ////use std::path::Path;
+use anyhow::{Error};
 
 
 /// Arguments to the program
@@ -63,12 +64,12 @@ fn parseargs() -> ArgInfo {
 }
 
 /// LLSD mode
-fn run_llsd_mode(verbose: bool) {
+fn run_llsd_mode(verbose: bool) -> Result<(), Error> {
     todo!()
 }
 
 /// Decompress one URL or file mode.
-fn decompress_one_url(in_url: &str, out_file: &str, max_size: u32, verbose: bool) {
+fn decompress_one_url(in_url: &str, out_file: &str, max_size: u32, verbose: bool) -> Result<(), Error> {
     todo!();
 }
 
@@ -76,9 +77,13 @@ fn decompress_one_url(in_url: &str, out_file: &str, max_size: u32, verbose: bool
 fn main() {
     let args = parseargs();
     eprintln!("args: {:?}", args);               // ***TEMP***
-    if args.llsd_mode {
+    let status = if args.llsd_mode {
         run_llsd_mode(args.verbose)
     } else {
         decompress_one_url(args.in_url.as_str(), args.out_file.as_str(), args.max_size, args.verbose)
+    };
+    if let Err(e) = status {
+        eprintln!("Error: {:?}", e);
+        std::process::exit(1);
     }
 }

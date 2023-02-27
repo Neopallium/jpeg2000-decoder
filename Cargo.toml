@@ -39,5 +39,6 @@ jpeg2k = "0.6.2"
 serde-llsd = "0.1.0"
 
 #   Misc.
+anyhow = "1"
 argparse = "0.2.2"
 url = "2.3.1"
