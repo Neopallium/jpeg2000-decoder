@@ -37,3 +37,7 @@ jpeg2k = "0.6.2"
 
 #   LLSD handler
 serde-llsd = "0.1.0"
+
+#   Misc.
+argparse = "0.2.2"
+url = "2.3.1"

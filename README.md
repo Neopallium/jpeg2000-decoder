@@ -27,6 +27,9 @@ Usage: jpeg2000-decoder -i INFILE -o OUTFILE
 
 * **--user-agent USERAGENT** HTTP user agent to use when making requests.
 
+* **-v** Verbose 
+* **--verbose**
+
 ## LLSD mode
 
 The executable accepts commands on standard input, and returns results on standard output.
