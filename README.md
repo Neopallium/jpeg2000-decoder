@@ -23,6 +23,8 @@ Usage: jpeg2000-decoder -i INFILE -o OUTFILE
 * **-o OUTFILE** Output file. Only **.png** is currently supported.
 * **--output OUTFILE**
 
+* **--maxsize PIXELS** Maximum dimension of output image. Image will be fetched and reduced accordingly.
+
 * **--llsd** Enables LLSD mode. The subprocess accepts commands and returns images, using Linden Lab Serial Data marshalling.
 
 * **--user-agent USERAGENT** HTTP user agent to use when making requests.

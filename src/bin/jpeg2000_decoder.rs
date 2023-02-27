@@ -15,6 +15,8 @@ struct ArgInfo {
     pub in_url: String,
     /// Destination file
     pub out_file: String,
+    /// Maximum output image dimension, in pixels
+    pub max_size: u32,
     /// If true, ignore above fields and read LLSD commands from input.
     pub llsd_mode: bool,
     /// Verbose mode. Goes to standard error if LLSD mode.
@@ -30,6 +32,7 @@ struct ArgInfo {
 //
 fn parseargs() -> ArgInfo {
     let mut arginfo = ArgInfo {
+        max_size: u32::MAX,
         .. Default::default()
     };
     {
@@ -40,7 +43,9 @@ fn parseargs() -> ArgInfo {
         ap.refer(&mut arginfo.in_url)
             .add_option(&["-i", "--infile"], Store, "Input URL or file.");
         ap.refer(&mut arginfo.out_file)
-            .add_option(&["-o", "--outfile"], Store, "Output file.");           
+            .add_option(&["-o", "--outfile"], Store, "Output file.");
+        ap.refer(&mut arginfo.max_size)
+            .add_option(&["--maxsize"], Store, "Maximum dimension of output image");            
         ap.refer(&mut arginfo.verbose)
             .add_option(&["-v", "--verbose"], Store, "Verbose mode.");
         ap.refer(&mut arginfo.llsd_mode)
@@ -57,8 +62,23 @@ fn parseargs() -> ArgInfo {
     arginfo
 }
 
+/// LLSD mode
+fn run_llsd_mode(verbose: bool) {
+    todo!()
+}
+
+/// Decompress one URL or file mode.
+fn decompress_one_url(in_url: &str, out_file: &str, max_size: u32, verbose: bool) {
+    todo!();
+}
+
 /// Main program
 fn main() {
     let args = parseargs();
     eprintln!("args: {:?}", args);               // ***TEMP***
+    if args.llsd_mode {
+        run_llsd_mode(args.verbose)
+    } else {
+        decompress_one_url(args.in_url.as_str(), args.out_file.as_str(), args.max_size, args.verbose)
+    }
 }
