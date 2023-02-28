@@ -7,6 +7,10 @@
 ////use url::Url;
 ////use std::path::Path;
 use anyhow::{Error};
+use jpeg2k::*;
+use image::{DynamicImage};
+
+
 
 
 /// Arguments to the program
@@ -70,7 +74,11 @@ fn run_llsd_mode(verbose: bool) -> Result<(), Error> {
 
 /// Decompress one URL or file mode.
 fn decompress_one_url(in_url: &str, out_file: &str, max_size: u32, verbose: bool) -> Result<(), Error> {
-    todo!();
+    // Initial dumb version.
+    let jp2_image = Image::from_file(in_url)?; // load from file (not URL)
+    let img: DynamicImage = (&jp2_image).try_into()?;  // convert
+    img.save(out_file)?;            // save as PNG file
+    Ok(())
 }
 
 /// Main program

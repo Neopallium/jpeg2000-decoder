@@ -33,10 +33,15 @@ path = "src/bin/jpeg2000_decoder.rs" # replace bin.rs with name of your file
 [dependencies]
 
 #   The OpenJPEG decoder.
-jpeg2k = "0.6.2"
+####jpeg2k = "0.6.2"
+jpeg2k = {version = "0.6.2", features = ["image"]}
 
 #   LLSD handler
 serde-llsd = "0.1.0"
+
+#   Images
+#### image = "0.24.5" -- jpeg2k needs an older version.
+image = "0.23.14"
 
 #   Misc.
 anyhow = "1"
