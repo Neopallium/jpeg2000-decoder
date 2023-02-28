@@ -9,9 +9,10 @@
 use anyhow::{Error};
 use jpeg2k::*;
 use image::{DynamicImage};
-
-
-
+use std::fs::File;
+use std::io::Read;
+use std::io::BufReader;
+use image::GenericImageView;
 
 /// Arguments to the program
 #[derive(Clone, Debug, Default)]
@@ -21,7 +22,7 @@ struct ArgInfo {
     /// Destination file
     pub out_file: String,
     /// Maximum output image dimension, in pixels
-    pub max_size: u32,
+    pub max_size: usize,
     /// If true, ignore above fields and read LLSD commands from input.
     pub llsd_mode: bool,
     /// Verbose mode. Goes to standard error if LLSD mode.
@@ -37,7 +38,7 @@ struct ArgInfo {
 //
 fn parseargs() -> ArgInfo {
     let mut arginfo = ArgInfo {
-        max_size: u32::MAX,
+        max_size: 1000000000,
         .. Default::default()
     };
     {
@@ -73,10 +74,24 @@ fn run_llsd_mode(verbose: bool) -> Result<(), Error> {
 }
 
 /// Decompress one URL or file mode.
-fn decompress_one_url(in_url: &str, out_file: &str, max_size: u32, verbose: bool) -> Result<(), Error> {
+fn decompress_one_url(in_url: &str, out_file: &str, max_size: usize, verbose: bool) -> Result<(), Error> {
     // Initial dumb version.
-    let jp2_image = Image::from_file(in_url)?; // load from file (not URL)
+    let file_bytes_guess = max_size * max_size * 4 + 200; // guess file size needed.
+    let in_file = File::open(in_url)?;
+    let mut buf_reader = BufReader::new(in_file);
+    let mut contents = Vec::new();
+    buf_reader.read_to_end(&mut contents)?;
+    let contents = if contents.len() > file_bytes_guess {
+        println!("Truncating file from {} bytes to {} bytes", contents.len(), file_bytes_guess);
+        contents[0..file_bytes_guess].to_vec()
+    } else {
+        contents
+    };
+    let jp2_image = Image::from_bytes(&contents)?;
+    println!("Input file {}: {:?}", in_url, jp2_image);
+    ////let jp2_image = Image::from_file(in_url)?; // load from file (not URL)
     let img: DynamicImage = (&jp2_image).try_into()?;  // convert
+    println!("Output file {}: ({}, {})", out_file, img.width(), img.height());
     img.save(out_file)?;            // save as PNG file
     Ok(())
 }
