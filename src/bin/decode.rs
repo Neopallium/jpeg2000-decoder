@@ -4,8 +4,7 @@
 //  February, 2023
 //
 
-////use url::Url;
-////use std::path::Path;
+/*
 use anyhow::{Error};
 use jpeg2k::*;
 use image::{DynamicImage};
@@ -13,6 +12,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::BufReader;
 use image::GenericImageView;
+*/
 
 /// Maximum image dimension allowed
 const MAX_DIM_LIMIT: u32 = 8192;          // bigger than this, we're not going to reduce
@@ -26,12 +26,14 @@ const MINIMUM_SIZE_TO_READ: usize = 4096;   // smaller than this and JPEG 2000 f
 /// Discard level 0 is full size, 1 is 1/4 size, etc. 
 pub fn estimate_read_size(image_size: (u32, u32), max_dim: u32) -> (usize, usize) {
     assert!(max_dim > 0);       // would cause divide by zero
-    if max_dim > MAX_DIM_LIMIT {
+    let reduction_ratio = (image_size.0.max(image_size.1)) as usize / (max_dim as usize);
+    if max_dim > MAX_DIM_LIMIT || reduction_ratio < 2{
         return (usize::MAX, 0)      // full size
     }
-    let reduction_ratio = (image_size.0.max(image_size.1)) as usize / (max_dim as usize);
-    let in_pixels = (image_size.0 as usize) * (image_size.1 as usize);
-    let out_pixels = in_pixels / reduction_ratio;   // number of pixels desired in output
+    //  Not full size, will be reducing.
+    let in_pixels = (image_size.0 as usize) * (image_size.1 as usize);	
+    let out_pixels = in_pixels / (reduction_ratio * reduction_ratio);   // number of pixels desired in output
+    println!("Reduction ratio: {}, out pixels = {}", reduction_ratio, out_pixels);    // ***TEMP***
     //  Read this many bytes and decode.
     let max_bytes = (((out_pixels * BYTES_PER_PIXEL) as f32) * JPEG_2000_COMPRESSION_FACTOR) as usize;
     let max_bytes = max_bytes.max(MINIMUM_SIZE_TO_READ);
@@ -39,12 +41,13 @@ pub fn estimate_read_size(image_size: (u32, u32), max_dim: u32) -> (usize, usize
     let discard_level = calc_discard_level(reduction_ratio);  // ***SCALE***
     (max_bytes, discard_level)
 }
-
-///  Reduction ratio 1 -> discard level 0, 4->1, 16->2, etc. Round up.
+	
+///  Reduction ratio 1 -> discard level 0, 2->1, 3->2, etc. Round up. Just log2.
+//  Yes, there is a cleverer way to do this by shifting and masking.
 fn calc_discard_level(reduction_ratio: usize) -> usize {
     assert!(reduction_ratio > 0);
     for i in 0..16 {
-        if 4_u32.pow(i) as usize >= reduction_ratio {
+        if 2_u32.pow(i) as usize 	>= reduction_ratio {
             return i.try_into().expect("calc discard level overflow")
         }
     }
@@ -66,13 +69,29 @@ pub fn estimate_initial_read_size(max_dim: u32) -> usize {
 fn test_calc_discard_level() {
     assert_eq!(calc_discard_level(1), 0);
     assert_eq!(calc_discard_level(2), 1);
-    assert_eq!(calc_discard_level(3), 1);
-    assert_eq!(calc_discard_level(4), 1);
-    assert_eq!(calc_discard_level(5), 2);
-    assert_eq!(calc_discard_level(15), 2);
-    assert_eq!(calc_discard_level(16), 2);
-    assert_eq!(calc_discard_level(17), 3);
-    assert_eq!(calc_discard_level(63), 3);
-    assert_eq!(calc_discard_level(64), 3);
-    assert_eq!(calc_discard_level(65), 4);
+    assert_eq!(calc_discard_level(3), 2);
+    assert_eq!(calc_discard_level(4), 2);
+    assert_eq!(calc_discard_level(5), 3);
+    assert_eq!(calc_discard_level(8), 3);
+    assert_eq!(calc_discard_level(16), 4);
+    assert_eq!(calc_discard_level(17), 5);
+    assert_eq!(calc_discard_level(63), 6);
+    assert_eq!(calc_discard_level(64), 6);
+    assert_eq!(calc_discard_level(65), 7);
+}
+#[test]
+/// Sanity check on estimator math.
+/// These assume the values of the constants above.
+fn test_estimate_read_size() {
+    //  Don't know size of JPEG 2000 image.
+    assert_eq!(estimate_initial_read_size(1), MINIMUM_SIZE_TO_READ);
+    assert_eq!(estimate_initial_read_size(64), 14745);  // given constant values above, 90% of output image area.
+    assert_eq!(estimate_initial_read_size(32), 4096);  // given constant values above, 90% of output image area.
+    //  Know size of JPEG 2000 image.
+    assert_eq!(estimate_read_size((64,64),64), (usize::MAX, 0));
+    assert_eq!(estimate_read_size((64,64),32), (4096, 1));  // 2:1 reduction
+    assert_eq!(estimate_read_size((512,512),32), (4096, 4)); // 16:1 reduction, discard level 4
+    assert_eq!(estimate_read_size((512,512),64), (14745, 3)); // 8:1 reduction, discard level 3
+    assert_eq!(estimate_read_size((512,256),64), (7372, 3)); // 8:1 reduction, discard level 3
+    assert_eq!(estimate_read_size((512,256),512), (usize::MAX, 0)); // no reduction, full size.
 }
