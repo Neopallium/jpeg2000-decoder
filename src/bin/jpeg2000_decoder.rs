@@ -14,6 +14,8 @@ use std::io::Read;
 use std::io::BufReader;
 use image::GenericImageView;
 
+mod decode;
+
 /// Arguments to the program
 #[derive(Clone, Debug, Default)]
 struct ArgInfo {
@@ -87,9 +89,25 @@ fn decompress_one_url(in_url: &str, out_file: &str, max_size: usize, verbose: bo
     } else {
         contents
     };
-    let jp2_image = Image::from_bytes(&contents)?;
+    let decode_parameters = DecodeParameters::new();
+    ////println!("Decode parameters: {:?}", decode_parameters);
+    let jp2_image = Image::from_bytes_with(&contents, decode_parameters)?;
     println!("Input file {}: {:?}", in_url, jp2_image);
     ////let jp2_image = Image::from_file(in_url)?; // load from file (not URL)
+/*
+    //  ***TEMP*** timing test - result is about 30ms per image.
+    let now = std::time::Instant::now();
+    const TRIES: usize = 1000;
+    for _ in 0..1000 {
+        let decode_parameters = DecodeParameters::new();
+        let jp2_image = Image::from_bytes_with(&contents, decode_parameters)?;
+        let img: DynamicImage = (&jp2_image).try_into()?;  // convert
+    }
+    let elapsed = now.elapsed().as_secs_f32() / (TRIES as f32);
+    println!("Decompression time: {} secs.", elapsed);
+*/    
+    
+    
     let img: DynamicImage = (&jp2_image).try_into()?;  // convert
     println!("Output file {}: ({}, {})", out_file, img.width(), img.height());
     img.save(out_file)?;            // save as PNG file
