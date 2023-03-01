@@ -1,8 +1,21 @@
-//! # decode.rs  -- Decoder program for JPEG 2000 files.
+//! # decode.rs  -- Decoder tools for JPEG 2000 files.
 //!
 //  Animats
 //  February, 2023
 //
+//! ## Information stored in the header of a JPEG 2000 file
+//!
+//! Dump from a sample image, using jpeg2k's dump program:
+//!    Image { x_offset: 0, y_offset: 0, width: 768, height: 512, color_space: SRGB, numcomps: 3, comps: [
+//!    ImageComponent { dx: 1, dy: 1, w: 768, h: 512, x0: 0, y0: 0, prec: 8, bpp: 0, sgnd: 0, resno_decoded: 5, factor: 0, data: 0x7fd1554eb010,  alpha: 0 }, 
+//!    ImageComponent { dx: 1, dy: 1, w: 768, h: 512, x0: 0, y0: 0, prec: 8, bpp: 0, sgnd: 0, resno_decoded: 5, factor: 0, data: 0x7fd15536a010, alpha: 0 }, 
+//!    ImageComponent { dx: 1, dy: 1, w: 768, h: 512, x0: 0, y0: 0, prec: 8, bpp: 0, sgnd: 0, resno_decoded: 5, factor: 0, data: 0x7fd1551e9010, alpha: 0 }] }
+//!
+//! So this is a 3-component image, RGB (not RGBA).
+//! * prec -- bits per pixel per component.
+//! * bpp -- not used, deprecated. Ref: https://github.com/uclouvain/openjpeg/pull/1383
+//! * resno_decoded -- Not clear, should be the number of discard levels available.
+
 
 /*
 use anyhow::{Error};
