@@ -15,7 +15,6 @@ use image::GenericImageView;
 */
 
 /// Maximum image dimension allowed
-const MAX_DIM_LIMIT: u32 = 8192;          // bigger than this, we're not going to reduce
 const JPEG_2000_COMPRESSION_FACTOR: f32 = 0.9;    // conservative estimate of how much JPEG 2000 reduces size
 const BYTES_PER_PIXEL: usize = 4;             // assume RGBA, 8 bits
 const MINIMUM_SIZE_TO_READ: usize = 4096;   // smaller than this and JPEG 2000 files break down.
@@ -27,7 +26,7 @@ const MINIMUM_SIZE_TO_READ: usize = 4096;   // smaller than this and JPEG 2000 f
 pub fn estimate_read_size(image_size: (u32, u32), max_dim: u32) -> (usize, usize) {
     assert!(max_dim > 0);       // would cause divide by zero
     let reduction_ratio = (image_size.0.max(image_size.1)) as usize / (max_dim as usize);
-    if max_dim > MAX_DIM_LIMIT || reduction_ratio < 2{
+    if reduction_ratio < 2 {
         return (usize::MAX, 0)      // full size
     }
     //  Not full size, will be reducing.
@@ -56,8 +55,8 @@ fn calc_discard_level(reduction_ratio: usize) -> usize {
 
 /// Estimate when we don't know what the image size is.
 pub fn estimate_initial_read_size(max_dim: u32) -> usize {
-    let square = |x| x*x;           // ought to be built in
-    if max_dim > MAX_DIM_LIMIT {
+    let square = |x| x*x;            // ought to be built in
+    if max_dim > u32::MAX / 2 {      // to avoid overflow
         usize::MAX                   // no limit
     } else {
         ((square(max_dim as f32) * BYTES_PER_PIXEL as f32 * JPEG_2000_COMPRESSION_FACTOR) as usize).max(MINIMUM_SIZE_TO_READ)
