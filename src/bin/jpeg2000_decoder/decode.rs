@@ -16,7 +16,7 @@
 //! * bpp -- not used, deprecated. Ref: https://github.com/uclouvain/openjpeg/pull/1383
 //! * resno_decoded -- Not clear, should be the number of discard levels available.
 
-use crate::fetch::{build_agent, fetch_asset};
+use crate::fetch::{build_agent, fetch_asset, err_is_retryable};
 use jpeg2k::DecodeParameters;
 use std::convert;
 /*
@@ -42,22 +42,7 @@ impl AssetError {
     /// Is this error retryable?
     pub fn is_retryable(&self) -> bool {
         match self {
-            AssetError::Http(e) => {
-                match e {
-                    ureq::Error::Transport(_) => true, // always retry network errors
-                    ureq::Error::Status(status_code, _) => {
-                        match status_code {
-                            400 => false, // bad request
-                            401 => false, // forbidden
-                            402 => false, // payment required
-                            403 => false, // forbidden
-                            404 => false, // File not found, do not retry.
-                            405 => false, // method not allowed
-                            _ => true,    // retry everything else
-                        }
-                    }
-                }
-            }
+            AssetError::Http(e) => err_is_retryable(e),
             AssetError::Jpeg(_) => false,
         }
     }
@@ -88,7 +73,7 @@ struct FetchedImage {
 
 impl FetchedImage {
     /// Fetch image from server at indicated size.
-    fn fetch_once(
+    fn fetch(
         &mut self,
         agent: &ureq::Agent,
         url: &str,
@@ -114,32 +99,6 @@ impl FetchedImage {
             Ok(())
         } else {
             todo!(); // ***MORE***
-        }
-    }
-    
-    /// Fetch image from server at indicated size, with retries.
-    //  This should log retries, but we currently have no way to report them.
-    pub fn fetch(
-        &mut self,
-        agent: &ureq::Agent,
-        url: &str,
-        max_size_opt: Option<u32>,
-    ) -> Result<(), AssetError> {
-        const FETCH_RETRIES: usize = 3; // try this many times
-        const FETCH_RETRY_WAIT: std::time::Duration = std::time::Duration::from_secs(2);    // wait between tries
-        let mut retries = FETCH_RETRIES;
-        loop {              // until success, or fail
-            match self.fetch_once(agent, url, max_size_opt) {
-                Ok(v) => return Ok(v),
-                Err(e) => {
-                    if e.is_retryable() && retries > 0 {
-                        std::thread::sleep(FETCH_RETRY_WAIT);   // wait before retry
-                        retries -= 1;
-                    } else {
-                        return Err(e);     // not retryable or out of retries, fails
-                    }
-                }
-            }
         }
     }
 }
