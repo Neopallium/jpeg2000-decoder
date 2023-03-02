@@ -28,7 +28,7 @@ path = "src/lib/lib.rs"
 
 [[bin]]
 name = "jpeg2000_decoder"
-path = "src/bin/jpeg2000_decoder.rs" # replace bin.rs with name of your file
+path = "src/bin/jpeg2000_decoder/main.rs" # replace bin.rs with name of your file
 
 [dependencies]
 

@@ -16,8 +16,9 @@
 //! * bpp -- not used, deprecated. Ref: https://github.com/uclouvain/openjpeg/pull/1383
 //! * resno_decoded -- Not clear, should be the number of discard levels available.
 
+use std::convert;
 use jpeg2k::{DecodeParameters};
-use fetch::{fetch_asset};
+use crate::fetch::{fetch_asset};
 /*
 use anyhow::{Error};
 use jpeg2k::*;
@@ -27,6 +28,28 @@ use std::io::Read;
 use std::io::BufReader;
 use image::GenericImageView;
 */
+
+/// Things that can go wrong with an asset.
+pub enum AssetError {
+    /// HTTP and network errors
+    Http(ureq::Error),
+    /// Decoder errors
+    Jpeg( jpeg2k::error::Error)
+}
+
+//
+//  Encapsulate errors from each of the lower level error types
+//
+impl convert::From<ureq::Error> for AssetError {
+    fn from(err: ureq::Error) -> AssetError {
+        AssetError::Http(err)
+    }
+}
+impl convert::From< jpeg2k::error::Error> for AssetError {
+    fn from(err:  jpeg2k::error::Error) -> AssetError {
+        AssetError::Jpeg(err)
+    }
+}
 
 /// JPEG 2000 image currently being fetched.
 #[derive(Default)]
@@ -39,16 +62,22 @@ struct FetchedImage {
           
 impl FetchedImage {
     /// Fetch image from server at indicated size.
-    pub fn fetch(&mut self, agent: &ureq::Agent, url: &str, max_size_opt: Option<u32>) -> Result<(), ureq::Error>  {
+    pub fn fetch(&mut self, agent: &ureq::Agent, url: &str, max_size_opt: Option<u32>) -> Result<(), AssetError>  {
         if self.image_opt.is_none() {
+            //  No previous info. Fetch with guess as to size.
             let bounds: Option<(u32, u32)> = if let Some(max_size) = max_size_opt {
                 Some((0, estimate_initial_read_size(max_size)))    // first guess
             } else {
                 None
             };
-            let decode_parameters = DecodeParameters::new();
-            self.beginning_bytes = fetch_asset(agent, url, bounds)?;           // fetch the asset           
-            self.image_opt = Some(jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters)?);
+            let decode_parameters = DecodeParameters::new();                   // default decode, best effort
+            self.beginning_bytes = fetch_asset(agent, url, bounds)?;           // fetch the asset
+            let decode_result = jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters);
+            match decode_result {
+                Ok(v) => self.image_opt = Some(v),
+                Err(e) => return Err(e.into()),
+            };
+            ////self.image_opt = Some(jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters).map_err(into)?);
             Ok(())     
         } else {
             todo!();    // ***MORE***
