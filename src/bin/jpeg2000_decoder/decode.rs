@@ -101,6 +101,7 @@ impl FetchedImage {
             } else {
                 None
             };
+            ////println!("Bounds: {:?}", bounds); // ***TEMP***
             let decode_parameters = DecodeParameters::new(); // default decode, best effort
             self.beginning_bytes = fetch_asset(agent, url, bounds)?; // fetch the asset
             let decode_result =
@@ -121,8 +122,8 @@ impl FetchedImage {
 const JPEG_2000_COMPRESSION_FACTOR: f32 = 0.9;
 /// Assume RGBA, 8 bits   
 const BYTES_PER_PIXEL: u32 = 4;
-/// Smaller than this and JPEG 2000 files break down.
-const MINIMUM_SIZE_TO_READ: u32 = 4096;
+/// Below 1024, JPEG 2000 files tend to break down. This is one packet with room for HTTP headers.
+const MINIMUM_SIZE_TO_READ: u32 = 1024;
 /// 8192 x 8192 should be a big enough texture for anyone
 const LARGEST_IMAGE_DIMENSION: u32 = 8192;
 
@@ -202,16 +203,16 @@ fn test_estimate_read_size() {
     //  Don't know size of JPEG 2000 image.
     assert_eq!(estimate_initial_read_size(1), MINIMUM_SIZE_TO_READ);
     assert_eq!(estimate_initial_read_size(64), 14745); // given constant values above, 90% of output image area.
-    assert_eq!(estimate_initial_read_size(32), 4096); // given constant values above, 90% of output image area.
+    assert_eq!(estimate_initial_read_size(32), MINIMUM_SIZE_TO_READ.max(3686)); // given constant values above, 90% of output image area.
                                                       //  Know size of JPEG 2000 image.
     assert_eq!(
         estimate_read_size((64, 64), BYTES_PER_PIXEL, 64),
         (u32::MAX, 0)
     );
-    assert_eq!(estimate_read_size((64, 64), BYTES_PER_PIXEL, 32), (4096, 1)); // 2:1 reduction
+    assert_eq!(estimate_read_size((64, 64), BYTES_PER_PIXEL, 32), (MINIMUM_SIZE_TO_READ.max(3686), 1)); // 2:1 reduction
     assert_eq!(
         estimate_read_size((512, 512), BYTES_PER_PIXEL, 32),
-        (4096, 4)
+        (MINIMUM_SIZE_TO_READ.max(3686), 4)
     ); // 16:1 reduction, discard level 4
     assert_eq!(
         estimate_read_size((512, 512), BYTES_PER_PIXEL, 64),
@@ -234,11 +235,12 @@ fn fetch_test_texture() {
     const TEXTURE_DEFAULT: &str = "89556747-24cb-43ed-920b-47caed15465f"; // plywood in both Second Life and Open Simulator
     const TEXTURE_CAP: &str = "http://asset-cdn.glb.agni.lindenlab.com";
     const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
+    const TEXTURE_OUT_SIZE: Option<u32> = Some(16);
     let url = format!("{}/?texture_id={}", TEXTURE_CAP, TEXTURE_DEFAULT);
     println!("Asset url: {}", url);
     let agent = build_agent(USER_AGENT, 1);
     let mut image = FetchedImage::default();
-    image.fetch(&agent, &url, None).expect("Fetch failed");
+    image.fetch(&agent, &url, TEXTURE_OUT_SIZE).expect("Fetch failed");
     assert!(image.image_opt.is_some()); // got image
     let img: DynamicImage = (&image.image_opt.unwrap())
         .try_into()
