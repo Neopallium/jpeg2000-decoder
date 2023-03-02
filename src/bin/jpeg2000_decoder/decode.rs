@@ -193,3 +193,14 @@ fn test_estimate_read_size() {
     assert_eq!(estimate_read_size((512,256), BYTES_PER_PIXEL, 64), (7372, 3)); // 8:1 reduction, discard level 3
     assert_eq!(estimate_read_size((512,256), BYTES_PER_PIXEL, 512), (u32::MAX, 0)); // no reduction, full size.
 }
+
+#[test]
+fn fetch_test_texture() {
+    const TEXTURE_DEFAULT: &str = "89556747-24cb-43ed-920b-47caed15465f";   // plywood in both Second Life and Open Simulator
+    const TEXTURE_ASSET_FETCH_PREFIX: &str = "https://foo?";
+    const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
+    let url = format!("{}?texture={}", TEXTURE_ASSET_FETCH_PREFIX, TEXTURE_DEFAULT); //
+    let agent = Agent::new(USER_AGENT,1);
+    let mut image = FetchedImage::new();
+    image.fetch(&agent, url, None).expect("Fetch failed");
+}
