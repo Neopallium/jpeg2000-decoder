@@ -196,6 +196,8 @@ fn test_estimate_read_size() {
 
 #[test]
 fn fetch_test_texture() {
+    use crate::DynamicImage;
+    use image::GenericImageView;
     const TEXTURE_DEFAULT: &str = "89556747-24cb-43ed-920b-47caed15465f";   // plywood in both Second Life and Open Simulator
     const TEXTURE_CAP: &str = "http://asset-cdn.glb.agni.lindenlab.com";
     const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
@@ -205,4 +207,8 @@ fn fetch_test_texture() {
     let mut image = FetchedImage::default();
     image.fetch(&agent, &url, None).expect("Fetch failed");
     assert!(image.image_opt.is_some()); // got image
+    let img: DynamicImage = (&image.image_opt.unwrap()).try_into().expect("Conversion failed");  // convert
+    let out_file = "/tmp/testimg.png";  // Linux only
+    println!("Output file {}: ({}, {})", out_file, img.width(), img.height());
+    img.save(out_file).expect("File save failed");            // save as PNG file
 }
