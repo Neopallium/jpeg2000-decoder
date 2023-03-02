@@ -15,6 +15,7 @@ use std::io::BufReader;
 use image::GenericImageView;
 
 mod decode;
+mod fetch;
 use decode::{estimate_initial_read_size};
 
 /// Arguments to the program
