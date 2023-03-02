@@ -118,7 +118,7 @@ impl FetchedImage {
         }
     }
     
-    /// Image sanity check
+    /// Image sanity check. Size, precision, etc.
     fn sanity_check(&self) -> Result<(), AssetError> {
         if let Some(img) = &self.image_opt {
             if img.orig_width() < 1 || img.orig_width() > LARGEST_IMAGE_DIMENSION
@@ -295,4 +295,48 @@ fn fetch_test_texture() {
         img.height()
     );
     img.save(out_file).expect("File save failed"); // save as PNG file
+}
+
+#[test]
+fn fetch_multiple_textures_serial() {
+    use crate::DynamicImage;
+    use image::GenericImageView;
+    use std::io::BufRead;
+    const TEST_UUIDS: &str = "samples/smalluuidlist.txt"; // test of UUIDs, relative to manifest dir
+    fn fetch_test_texture(uuid: &str) {
+        const TEXTURE_CAP: &str = "http://asset-cdn.glb.agni.lindenlab.com";
+        const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
+        const TEXTURE_OUT_SIZE: Option<u32> = Some(16);
+        let url = format!("{}/?texture_id={}", TEXTURE_CAP, uuid);
+        println!("Asset url: {}", url);
+        let agent = build_agent(USER_AGENT, 1);
+        let mut image = FetchedImage::default();
+        image.fetch(&agent, &url, TEXTURE_OUT_SIZE).expect("Fetch failed");
+        assert!(image.image_opt.is_some()); // got image
+        println!("Image stats: {:?}", image.get_image_stats());
+        let img: DynamicImage = (&image.image_opt.unwrap())
+            .try_into()
+            .expect("Conversion failed"); // convert
+
+        let out_file = format!("/tmp/TEST-{}.png", uuid); // Linux only
+        println!(
+            "Output file {}: ({}, {})",
+            out_file,
+            img.width(),
+            img.height()
+        );
+        img.save(out_file).expect("File save failed"); // save as PNG file
+    }
+    println!("---Fetch multiple textures serial start---");
+    //  Try all the files in the list
+    let basedir = env!["CARGO_MANIFEST_DIR"];           // where the manifest is
+    let file = std::fs::File::open(format!("{}/{}", basedir, TEST_UUIDS)).expect("Unable to open file of test UUIDs");
+    let reader = std::io::BufReader::new(file);
+    for line in reader.lines() { 
+        let line = line.expect("Error reading UUID file");
+        let line = line.trim();
+        if line.is_empty() { continue }
+        println!("{}", line);
+        fetch_test_texture(line);
+    }
 }
