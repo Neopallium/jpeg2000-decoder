@@ -36,6 +36,8 @@ pub enum AssetError {
     Http(ureq::Error),
     /// Decoder errors
     Jpeg(jpeg2k::error::Error),
+    /// Content errors
+    Content(String),
 }
 
 impl AssetError {
@@ -44,6 +46,7 @@ impl AssetError {
         match self {
             AssetError::Http(e) => err_is_retryable(e),
             AssetError::Jpeg(_) => false,
+            AssetError::Content(_) => false,
         }
     }
 }
@@ -76,7 +79,7 @@ pub struct ImageStats {
 
 /// JPEG 2000 image currently being fetched.
 #[derive(Default)]
-struct FetchedImage {
+pub struct FetchedImage {
     /// First bytes of the input file, if previously fetched.
     beginning_bytes: Vec<u8>,
     /// Image as read, but not exported
@@ -108,10 +111,32 @@ impl FetchedImage {
                 Err(e) => return Err(e.into()),
             };
             ////self.image_opt = Some(jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters).map_err(into)?);
-            Ok(())
+            self.sanity_check()                     // sanity check before decode
         } else {
             //  We have a previous image and can be more accurate.
             todo!(); // ***MORE***
+        }
+    }
+    
+    /// Image sanity check
+    fn sanity_check(&self) -> Result<(), AssetError> {
+        if let Some(img) = &self.image_opt {
+            if img.orig_width() < 1 || img.orig_width() > LARGEST_IMAGE_DIMENSION
+            || img.orig_height() < 1 || img.orig_height() > LARGEST_IMAGE_DIMENSION {
+                return Err(AssetError::Content(format!("Image dimensions ({},{}) out of range", img.orig_width(), img.orig_height())));
+            }
+            if img.components().is_empty() || img.components().len() > 4 {
+                return Err(AssetError::Content(format!("Image component count {} of range", img.components().len())));
+            }
+            for component in img.components().iter() {
+                //  Component precision is in bits
+                if component.precision() < 1 || component.precision() > 16 {
+                    return Err(AssetError::Content(format!("Image component precision {} of range", component.precision())));
+                }
+            }                
+            Ok(())
+        } else {
+            Err(AssetError::Content(format!("Image not fetched")))
         }
     }
     
