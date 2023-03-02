@@ -62,6 +62,18 @@ impl convert::From<jpeg2k::error::Error> for AssetError {
     }
 }
 
+/// Data about the image
+#[derive(Debug)]
+pub struct ImageStats {
+    /// Bytes per pixel, rounded up from bits.
+    bytes_per_pixel: u8,
+    /// Original dimensions of image.
+    dimensions: (u32, u32),
+    /// Discard levels available
+    discard_levels: u8
+}
+
+
 /// JPEG 2000 image currently being fetched.
 #[derive(Default)]
 struct FetchedImage {
@@ -98,7 +110,25 @@ impl FetchedImage {
             ////self.image_opt = Some(jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters).map_err(into)?);
             Ok(())
         } else {
+            //  We have a previous image and can be more accurate.
             todo!(); // ***MORE***
+        }
+    }
+    
+    /// Statistics about the image
+    fn get_image_stats(&self) -> Option<ImageStats> {
+        if let Some(img) = &self.image_opt {
+            let mut bits_per_pixel = 0;
+            for component in img.components().iter() {
+                bits_per_pixel += component.precision()
+            }
+            Some(ImageStats {
+                dimensions: (img.orig_width(), img.orig_height()),
+                bytes_per_pixel: ((bits_per_pixel + 7) / 8) as u8,
+                discard_levels: 0,       // ***WRONG*** ***TEMP***
+            })
+        } else {
+            None
         }
     }
 }
@@ -227,9 +257,11 @@ fn fetch_test_texture() {
     let mut image = FetchedImage::default();
     image.fetch(&agent, &url, TEXTURE_OUT_SIZE).expect("Fetch failed");
     assert!(image.image_opt.is_some()); // got image
+    println!("Image stats: {:?}", image.get_image_stats());
     let img: DynamicImage = (&image.image_opt.unwrap())
         .try_into()
         .expect("Conversion failed"); // convert
+
     let out_file = "/tmp/testimg.png"; // Linux only
     println!(
         "Output file {}: ({}, {})",
