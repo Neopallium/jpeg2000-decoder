@@ -30,11 +30,37 @@ use image::GenericImageView;
 */
 
 /// Things that can go wrong with an asset.
+#[derive(Debug)]
 pub enum AssetError {
     /// HTTP and network errors
     Http(ureq::Error),
     /// Decoder errors
     Jpeg( jpeg2k::error::Error)
+}
+
+impl AssetError {
+    /// Is this error retryable?
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            AssetError::Http(e) => {
+                match e {
+                    ureq::Error::Transport(_) => true,       // always retry network errors
+                    ureq::Error::Status(status_code, _) => {
+                        match status_code {
+                            400 => false,       // bad request
+                            401 => false,       // forbidden
+                            402 => false,       // payment required
+                            403 => false,       // forbidden
+                            404 => false,       // File not found, do not retry.
+                            405 => false,       // method not allowed
+                            _ => true,          // retry everything else
+                        }
+                    }
+                }
+            }
+            AssetError::Jpeg(_) => false,
+        }
+    }
 }
 
 //
