@@ -15,7 +15,7 @@ const NETWORK_TIMEOUT: Duration = Duration::from_secs(15);
 /// Fetch asset from asset server.
 /// Returns ureq::Error, so we can distinguish retryable errors.
 pub fn fetch_asset(
-    agent: &mut Agent,
+    agent: &Agent,
     url: &str,
     byte_range_opt: Option<(u32, u32)>)
     -> Result<Vec<u8>, ureq::Error> {
@@ -39,7 +39,6 @@ pub fn fetch_asset(
 
 /// Build user agent for queries.
 pub fn build_agent(user_agent: &str, max_connections: usize) -> Agent {
-    const NETWORK_TIMEOUT: Duration = Duration::from_secs(15);  // something has gone wrong if this slow
     AgentBuilder::new()
         .user_agent(user_agent)
         .max_idle_connections_per_host(max_connections)     // we mostly hit the same host, so we want more idle connections available
@@ -54,8 +53,8 @@ fn test_fetch_asset() {
     const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
     const MAX_CONNECTIONS: usize = 1;       // don't overdo
     const URL1: &str = "http://www.example.com";    // something to read
-    let mut agent = build_agent(USER_AGENT, MAX_CONNECTIONS);
-    let result = fetch_asset(&mut agent, URL1, Some((0,200))); // first 200 bytes only
+    let agent = build_agent(USER_AGENT, MAX_CONNECTIONS);
+    let result = fetch_asset(&agent, URL1, Some((0,200))); // first 200 bytes only
     match result {
         Ok(text) => {
             println!("Fetched {:?}", text);
