@@ -197,7 +197,7 @@ fn test_estimate_read_size() {
 #[test]
 fn fetch_test_texture() {
     const TEXTURE_DEFAULT: &str = "89556747-24cb-43ed-920b-47caed15465f";   // plywood in both Second Life and Open Simulator
-    const TEXTURE_CAP: &str = "https://asset-cdn.glb.agni.lindenlab.com";
+    const TEXTURE_CAP: &str = "http://asset-cdn.glb.agni.lindenlab.com";
     const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
     let url = format!("{}/?texture_id={}", TEXTURE_CAP, TEXTURE_DEFAULT);
     println!("Asset url: {}", url);
