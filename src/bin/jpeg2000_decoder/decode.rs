@@ -88,7 +88,7 @@ struct FetchedImage {
 
 impl FetchedImage {
     /// Fetch image from server at indicated size.
-    pub fn fetch(
+    fn fetch_once(
         &mut self,
         agent: &ureq::Agent,
         url: &str,
@@ -114,6 +114,32 @@ impl FetchedImage {
             Ok(())
         } else {
             todo!(); // ***MORE***
+        }
+    }
+    
+    /// Fetch image from server at indicated size, with retries.
+    //  This should log retries, but we currently have no way to report them.
+    pub fn fetch(
+        &mut self,
+        agent: &ureq::Agent,
+        url: &str,
+        max_size_opt: Option<u32>,
+    ) -> Result<(), AssetError> {
+        const FETCH_RETRIES: usize = 3; // try this many times
+        const FETCH_RETRY_WAIT: std::time::Duration = std::time::Duration::from_secs(2);    // wait between tries
+        let mut retries = FETCH_RETRIES;
+        loop {              // until success, or fail
+            match self.fetch_once(agent, url, max_size_opt) {
+                Ok(v) => return Ok(v),
+                Err(e) => {
+                    if e.is_retryable() && retries > 0 {
+                        std::thread::sleep(FETCH_RETRY_WAIT);   // wait before retry
+                        retries -= 1;
+                    } else {
+                        return Err(e);     // not retryable or out of retries, fails
+                    }
+                }
+            }
         }
     }
 }
