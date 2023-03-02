@@ -11,6 +11,9 @@ use anyhow::{Context, Error};
 use ureq::{Agent, AgentBuilder};
 use std::time::{Duration};
 
+/// Something has gone wrong if idle for this long.
+const NETWORK_TIMEOUT: Duration = Duration::from_secs(15);  
+
 /// Fetch asset from asset server.
 pub fn fetch_asset(
     agent: &mut Agent,
@@ -38,7 +41,7 @@ pub fn fetch_asset(
 
 /// Build user agent for queries.
 pub fn build_agent(user_agent: &str) -> Agent {
-    const NETWORK_TIMEOUT: Duration = Duration::from_secs(15);  // something has gone wrong
+    const NETWORK_TIMEOUT: Duration = Duration::from_secs(15);  // something has gone wrong if this slow
     AgentBuilder::new()
         .user_agent(user_agent)
         .timeout_connect(NETWORK_TIMEOUT)
