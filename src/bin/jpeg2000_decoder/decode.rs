@@ -302,21 +302,26 @@ fn fetch_multiple_textures_serial() {
     use crate::DynamicImage;
     use image::GenericImageView;
     use std::io::BufRead;
-    const TEST_UUIDS: &str = "samples/smalluuidlist.txt"; // test of UUIDs, relative to manifest dir
-    fn fetch_test_texture(uuid: &str) {
+    ////const TEST_UUIDS: &str = "samples/smalluuidlist.txt"; // test of UUIDs, relative to manifest dir
+    const TEST_UUIDS: &str = "samples/meduuidlist.txt"; // test of UUIDs, relative to manifest dir
+    const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
+    fn fetch_test_texture(agent: &ureq::Agent, uuid: &str) {
         const TEXTURE_CAP: &str = "http://asset-cdn.glb.agni.lindenlab.com";
-        const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
         const TEXTURE_OUT_SIZE: Option<u32> = Some(16);
         let url = format!("{}/?texture_id={}", TEXTURE_CAP, uuid);
         println!("Asset url: {}", url);
-        let agent = build_agent(USER_AGENT, 1);
+        let now = std::time::Instant::now();
         let mut image = FetchedImage::default();
         image.fetch(&agent, &url, TEXTURE_OUT_SIZE).expect("Fetch failed");
+        let fetch_time = now.elapsed();
+        let now = std::time::Instant::now();
         assert!(image.image_opt.is_some()); // got image
         println!("Image stats: {:?}", image.get_image_stats());
         let img: DynamicImage = (&image.image_opt.unwrap())
             .try_into()
             .expect("Conversion failed"); // convert
+        let decode_time = now.elapsed();
+        let now = std::time::Instant::now();
 
         let out_file = format!("/tmp/TEST-{}.png", uuid); // Linux only
         println!(
@@ -326,17 +331,20 @@ fn fetch_multiple_textures_serial() {
             img.height()
         );
         img.save(out_file).expect("File save failed"); // save as PNG file
+        let save_time = now.elapsed();
+        println!("File {} fetch: {:#?}, decode {:#?}: save: {:#?}", uuid, fetch_time.as_secs_f32(), decode_time.as_secs_f32(), save_time.as_secs_f32());
     }
     println!("---Fetch multiple textures serial start---");
     //  Try all the files in the list
     let basedir = env!["CARGO_MANIFEST_DIR"];           // where the manifest is
     let file = std::fs::File::open(format!("{}/{}", basedir, TEST_UUIDS)).expect("Unable to open file of test UUIDs");
     let reader = std::io::BufReader::new(file);
+    let agent = build_agent(USER_AGENT, 1);
     for line in reader.lines() { 
         let line = line.expect("Error reading UUID file");
         let line = line.trim();
         if line.is_empty() { continue }
         println!("{}", line);
-        fetch_test_texture(line);
+        fetch_test_texture(&agent, line);
     }
 }
