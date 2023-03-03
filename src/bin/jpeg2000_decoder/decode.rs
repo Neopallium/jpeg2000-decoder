@@ -344,7 +344,7 @@ fn fetch_multiple_textures_serial() {
         let line = line.expect("Error reading UUID file");
         let line = line.trim();
         if line.is_empty() { continue }
-        if line.startswith('#') { continue }
+        if line.starts_with('#') { continue }
         println!("{}", line);
         fetch_test_texture(&agent, line);
     }
