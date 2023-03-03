@@ -303,11 +303,11 @@ fn fetch_multiple_textures_serial() {
     use image::GenericImageView;
     use std::io::BufRead;
     ////const TEST_UUIDS: &str = "samples/smalluuidlist.txt"; // test of UUIDs, relative to manifest dir
-    const TEST_UUIDS: &str = "samples/meduuidlist.txt"; // test of UUIDs, relative to manifest dir
+    const TEST_UUIDS: &str = "samples/bugislanduuidlist.txt"; // test of UUIDs at Bug Island, some of which have problems.
     const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
     fn fetch_test_texture(agent: &ureq::Agent, uuid: &str) {
         const TEXTURE_CAP: &str = "http://asset-cdn.glb.agni.lindenlab.com";
-        const TEXTURE_OUT_SIZE: Option<u32> = Some(16);
+        const TEXTURE_OUT_SIZE: Option<u32> = Some(2048);
         let url = format!("{}/?texture_id={}", TEXTURE_CAP, uuid);
         println!("Asset url: {}", url);
         let now = std::time::Instant::now();
