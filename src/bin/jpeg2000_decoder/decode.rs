@@ -204,7 +204,7 @@ pub fn estimate_read_size(
     //  Reduction ratio 1 -> discard level 0, 4->1, 16->2, etc. Round down.
     let discard_level = calc_discard_level(reduction_ratio); // ***SCALE***
     println!(
-        "Reduction ratio: {}, discard level {}, butes to read = {}",
+        "Reduction ratio: {}, discard level {}, bytes to read = {}",
         reduction_ratio, discard_level, max_bytes
     ); // ***TEMP***
     (max_bytes, discard_level)
