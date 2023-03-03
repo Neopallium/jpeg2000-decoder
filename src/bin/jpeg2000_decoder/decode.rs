@@ -19,6 +19,9 @@
 use crate::fetch::{build_agent, fetch_asset, err_is_retryable};
 use jpeg2k::DecodeParameters;
 use std::convert;
+use std::path::Path;
+use std::fs::File;
+use std::io::{Read, Write};
 /*
 use anyhow::{Error};
 use jpeg2k::*;
@@ -65,6 +68,41 @@ impl convert::From<jpeg2k::error::Error> for AssetError {
     }
 }
 
+pub fn fetch_cached_asset(
+    agent: &ureq::Agent,
+    url: &str,
+    uuid: &str,
+    byte_range_opt: Option<(u32, u32)>,
+) -> Result<Vec<u8>, ureq::Error> {
+  let name = match byte_range_opt {
+    Some((start, end)) => format!("{uuid}_{start}_{end}.j2k"),
+    None => format!("{uuid}.j2k"),
+  };
+  let name = Path::new(&name);
+  if name.exists() {
+    let mut f = std::fs::File::open(&name).expect("Failed to open file.");
+    let mut data = Vec::new();
+    match f.read_to_end(&mut data) {
+      Ok(_) => {
+        return Ok(data);
+      }
+      Err(e) => {
+        eprintln!("Failed to read cached file: {e:?}");
+      },
+    }
+  }
+  match fetch_asset(agent, url, byte_range_opt) {
+    Ok(data) => {
+      // Cache file.
+      let mut f = std::fs::File::create(&name).expect("Failed to open file.");
+      f.write_all(data.as_slice()).expect("Failed to write");
+
+      Ok(data)
+    }
+    err => err,
+  }
+}
+
 /// Data about the image
 #[derive(Debug)]
 pub struct ImageStats {
@@ -90,6 +128,7 @@ impl FetchedImage {
         &mut self,
         agent: &ureq::Agent,
         url: &str,
+        uuid: &str,
         max_size_opt: Option<u32>,
     ) -> Result<(), AssetError> {
         if self.image_opt.is_none() {
@@ -101,7 +140,7 @@ impl FetchedImage {
             };
             ////println!("Bounds: {:?}", bounds); // ***TEMP***
             let decode_parameters = DecodeParameters::new(); // default decode, best effort
-            self.beginning_bytes = fetch_asset(agent, url, bounds)?; // fetch the asset
+            self.beginning_bytes = fetch_cached_asset(agent, url, uuid, bounds)?; // fetch the asset
             let decode_result =
                 jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters);
             match decode_result {
@@ -120,7 +159,7 @@ impl FetchedImage {
                 (None, 0)                                    // caller wants full size
             };
             //  Now fetch. Currently, from beginning, but we could optimize and reuse the first part.
-            self.beginning_bytes = fetch_asset(agent, url, bounds)?; // fetch the asset
+            self.beginning_bytes = fetch_cached_asset(agent, url, uuid, bounds)?; // fetch the asset
             let decode_parameters = DecodeParameters::new().reduce(discard_level); // decoded to indicated level
             let decode_result =
                 jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters);
@@ -296,7 +335,7 @@ fn fetch_test_texture() {
     println!("Asset url: {}", url);
     let agent = build_agent(USER_AGENT, 1);
     let mut image = FetchedImage::default();
-    image.fetch(&agent, &url, TEXTURE_OUT_SIZE).expect("Fetch failed");
+    image.fetch(&agent, &url, TEXTURE_DEFAULT, TEXTURE_OUT_SIZE).expect("Fetch failed");
     assert!(image.image_opt.is_some()); // got image
     println!("Image stats: {:?}", image.get_image_stats());
     let img: DynamicImage = (&image.image_opt.unwrap())
@@ -329,13 +368,13 @@ fn fetch_multiple_textures_serial() {
         let now = std::time::Instant::now();
         let mut image = FetchedImage::default();
         // First fetch
-        image.fetch(&agent, &url, Some(16)).expect("Fetch failed");
+        image.fetch(&agent, &url, uuid, Some(16)).expect("Fetch failed");
         let fetch_time = now.elapsed();
         let now = std::time::Instant::now();
         assert!(image.image_opt.is_some()); // got image
         println!("Image stats: {:?}", image.get_image_stats());
         //  Second fetch, now that we have header info
-        image.fetch(&agent, &url, Some(max_size)).expect("Fetch failed");
+        image.fetch(&agent, &url, uuid, Some(max_size)).expect("Fetch failed");
         let img: DynamicImage = (&image.image_opt.unwrap())
             .try_into()
             .expect("Conversion failed"); // convert
