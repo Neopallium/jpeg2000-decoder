@@ -72,8 +72,6 @@ pub struct ImageStats {
     bytes_per_pixel: u8,
     /// Original dimensions of image.
     dimensions: (u32, u32),
-    /// Discard levels available
-    discard_levels: u8
 }
 
 
@@ -114,7 +112,23 @@ impl FetchedImage {
             self.sanity_check()                     // sanity check before decode
         } else {
             //  We have a previous image and can be more accurate.
-            todo!(); // ***MORE***
+            let stats = self.get_image_stats().unwrap();    // should alwasy get, we just tested for image presence.
+            let (bounds, discard_level) = if let Some(max_size) = max_size_opt {
+                let (max_bytes, discard_level) = estimate_read_size(stats.dimensions, stats.bytes_per_pixel, max_size);
+                (Some((0, max_bytes)), discard_level)  // calc bounds to read
+            } else {
+                (None, 0)                                    // caller wants full size
+            };
+            //  Now fetch. Currently, from beginning, but we could optimize and reuse the first part.
+            self.beginning_bytes = fetch_asset(agent, url, bounds)?; // fetch the asset
+            let decode_parameters = DecodeParameters::new().reduce(discard_level); // decoded to indicated level
+            let decode_result =
+                jpeg2k::Image::from_bytes_with(&self.beginning_bytes, decode_parameters);
+            match decode_result {
+                Ok(v) => self.image_opt = Some(v),
+                Err(e) => return Err(e.into()),
+            };
+            self.sanity_check()                     // sanity check before decode
         }
     }
     
@@ -150,7 +164,6 @@ impl FetchedImage {
             Some(ImageStats {
                 dimensions: (img.orig_width(), img.orig_height()),
                 bytes_per_pixel: ((bits_per_pixel + 7) / 8) as u8,
-                discard_levels: 0,       // ***WRONG*** ***TEMP***
             })
         } else {
             None
@@ -160,8 +173,7 @@ impl FetchedImage {
 
 /// Conservative estimate of how much JPEG 2000 reduces size
 const JPEG_2000_COMPRESSION_FACTOR: f32 = 0.9;
-/// Assume RGBA, 8 bits   
-const BYTES_PER_PIXEL: u32 = 4;
+
 /// Below 1024, JPEG 2000 files tend to break down. This is one packet with room for HTTP headers.
 const MINIMUM_SIZE_TO_READ: u32 = 1024;
 /// 8192 x 8192 should be a big enough texture for anyone
@@ -174,7 +186,7 @@ const LARGEST_IMAGE_DIMENSION: u32 = 8192;
 /// Discard level 0 is full size, 1 is 1/4 size, etc.
 pub fn estimate_read_size(
     image_size: (u32, u32),
-    bytes_per_pixel: u32,
+    bytes_per_pixel: u8,
     max_dim: u32,
 ) -> (u32, u32) {
     assert!(max_dim > 0); // would cause divide by zero
@@ -185,15 +197,16 @@ pub fn estimate_read_size(
     //  Not full size, will be reducing.
     let in_pixels = image_size.0 * image_size.1;
     let out_pixels = in_pixels / (reduction_ratio * reduction_ratio); // number of pixels desired in output
-    println!(
-        "Reduction ratio: {}, out pixels = {}",
-        reduction_ratio, out_pixels
-    ); // ***TEMP***
+    
        //  Read this many bytes and decode.
-    let max_bytes = (((out_pixels * bytes_per_pixel) as f32) * JPEG_2000_COMPRESSION_FACTOR) as u32;
+    let max_bytes = (((out_pixels as f32) * (bytes_per_pixel as f32)) * JPEG_2000_COMPRESSION_FACTOR) as u32;
     let max_bytes = max_bytes.max(MINIMUM_SIZE_TO_READ);
     //  Reduction ratio 1 -> discard level 0, 4->1, 16->2, etc. Round down.
     let discard_level = calc_discard_level(reduction_ratio); // ***SCALE***
+    println!(
+        "Reduction ratio: {}, discard level {}, butes to read = {}",
+        reduction_ratio, discard_level, max_bytes
+    ); // ***TEMP***
     (max_bytes, discard_level)
 }
 
@@ -211,6 +224,7 @@ fn calc_discard_level(reduction_ratio: u32) -> u32 {
 
 /// Estimate when we don't know what the image size is.
 pub fn estimate_initial_read_size(max_dim: u32) -> u32 {
+    const BYTES_PER_PIXEL: u8 = 4;  // worst case estimate
     let square = |x| x * x; // ought to be built in
     if max_dim > LARGEST_IMAGE_DIMENSION {
         // to avoid overflow
@@ -240,6 +254,8 @@ fn test_calc_discard_level() {
 /// Sanity check on estimator math.
 /// These assume the values of the constants above.
 fn test_estimate_read_size() {
+    /// Assume RGBA, 8 bits   
+    const BYTES_PER_PIXEL: u8 = 4;
     //  Don't know size of JPEG 2000 image.
     assert_eq!(estimate_initial_read_size(1), MINIMUM_SIZE_TO_READ);
     assert_eq!(estimate_initial_read_size(64), 14745); // given constant values above, 90% of output image area.
@@ -305,18 +321,21 @@ fn fetch_multiple_textures_serial() {
     ////const TEST_UUIDS: &str = "samples/smalluuidlist.txt"; // test of UUIDs, relative to manifest dir
     const TEST_UUIDS: &str = "samples/bugislanduuidlist.txt"; // test of UUIDs at Bug Island, some of which have problems.
     const USER_AGENT: &str = "Test asset fetcher. Contact info@animats.com if problems.";
-    fn fetch_test_texture(agent: &ureq::Agent, uuid: &str) {
+    fn fetch_test_texture(agent: &ureq::Agent, uuid: &str, max_size: u32) {
         const TEXTURE_CAP: &str = "http://asset-cdn.glb.agni.lindenlab.com";
-        const TEXTURE_OUT_SIZE: Option<u32> = Some(2048);
+        ////const TEXTURE_OUT_SIZE: Option<u32> = Some(2048);
         let url = format!("{}/?texture_id={}", TEXTURE_CAP, uuid);
         println!("Asset url: {}", url);
         let now = std::time::Instant::now();
         let mut image = FetchedImage::default();
-        image.fetch(&agent, &url, TEXTURE_OUT_SIZE).expect("Fetch failed");
+        // First fetch
+        image.fetch(&agent, &url, Some(16)).expect("Fetch failed");
         let fetch_time = now.elapsed();
         let now = std::time::Instant::now();
         assert!(image.image_opt.is_some()); // got image
         println!("Image stats: {:?}", image.get_image_stats());
+        //  Second fetch, now that we have header info
+        image.fetch(&agent, &url, Some(max_size)).expect("Fetch failed");
         let img: DynamicImage = (&image.image_opt.unwrap())
             .try_into()
             .expect("Conversion failed"); // convert
@@ -339,6 +358,7 @@ fn fetch_multiple_textures_serial() {
     let basedir = env!["CARGO_MANIFEST_DIR"];           // where the manifest is
     let file = std::fs::File::open(format!("{}/{}", basedir, TEST_UUIDS)).expect("Unable to open file of test UUIDs");
     let reader = std::io::BufReader::new(file);
+    const TEXTURE_OUT_SIZE: u32 = 128;
     let agent = build_agent(USER_AGENT, 1);
     for line in reader.lines() { 
         let line = line.expect("Error reading UUID file");
@@ -346,6 +366,6 @@ fn fetch_multiple_textures_serial() {
         if line.is_empty() { continue }
         if line.starts_with('#') { continue }
         println!("{}", line);
-        fetch_test_texture(&agent, line);
+        fetch_test_texture(&agent, line, TEXTURE_OUT_SIZE);
     }
 }

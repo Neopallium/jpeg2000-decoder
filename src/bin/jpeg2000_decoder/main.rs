@@ -27,6 +27,8 @@ struct ArgInfo {
     pub out_file: String,
     /// Maximum output image dimension, in pixels
     pub max_size: usize,
+    /// Reduction factor
+    pub reduction_factor: u8,
     /// If true, ignore above fields and read LLSD commands from input.
     pub llsd_mode: bool,
     /// Verbose mode. Goes to standard error if LLSD mode.
@@ -54,6 +56,8 @@ fn parseargs() -> ArgInfo {
             .add_option(&["-i", "--infile"], Store, "Input URL or file.");
         ap.refer(&mut arginfo.out_file)
             .add_option(&["-o", "--outfile"], Store, "Output file.");
+        ap.refer(&mut arginfo.reduction_factor)
+            .add_option(&["-r", "--reduction"], Store, "Reduction factor.");
         ap.refer(&mut arginfo.max_size).add_option(
             &["--maxsize"],
             Store,
@@ -85,6 +89,7 @@ fn decompress_one_url(
     in_url: &str,
     out_file: &str,
     max_size: usize,
+    reduction: u8,
     verbose: bool,
 ) -> Result<(), Error> {
     // Initial dumb version.
@@ -103,7 +108,7 @@ fn decompress_one_url(
     } else {
         contents
     };
-    let decode_parameters = DecodeParameters::new();
+    let decode_parameters = DecodeParameters::new().reduce(reduction.into());
     ////println!("Decode parameters: {:?}", decode_parameters);
     let jp2_image = Image::from_bytes_with(&contents, decode_parameters)?;
     println!("Input file {}: {:?}", in_url, jp2_image);
@@ -141,8 +146,9 @@ fn main() {
     } else {
         decompress_one_url(
             args.in_url.as_str(),
-            args.out_file.as_str(),
+            args.out_file.as_str(),           
             args.max_size,
+            args.reduction_factor,
             args.verbose,
         )
     };
